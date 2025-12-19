@@ -1,0 +1,19 @@
+# MLflow
+mlruns/
+.mlruns/
+
+# Data (сырой файл)
+data/raw/
+*.csv
+
+# Environment
+.env
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
