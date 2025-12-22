@@ -1,0 +1,49 @@
+project:
+  name: "mlops-spam-classifier"
+  seed: 42
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  model_dir: "models"
+  best_model_dir: "models/best"
+
+data:
+  raw_filename: "spam_Emails_data.csv"
+  text_col: "text"
+  label_col: "label"
+  split:
+    train_size: 0.8
+    val_size: 0.1
+    test_size: 0.1
+
+preprocessing:
+  version: "v1"
+  v1:
+    lower: true
+    strip: true
+  v2:
+    lower: true
+    strip: true
+    remove_urls: true
+    remove_html: true
+
+train:
+  base_model_name: "distilbert-base-uncased"
+  max_length: 128
+  batch_size: 16
+  lr: 2e-5
+  epochs: 1
+  weight_decay: 0.01
+  device: "cuda"
+
+mlflow:
+  tracking_uri: "http://127.0.0.1:8080"
+  experiment_name: "spam-classification"
+  run_name: "baseline"
+
+inference:
+  model_path: "models/best"
+  max_length: 128
+  device: "cuda"
+  threshold: 0.5
