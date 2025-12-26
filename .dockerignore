@@ -1,0 +1,25 @@
+# Ignore everything by default
+**
+
+# Allow only what's needed for inference image
+!app/**
+!src/inference/**
+!configs/**
+!requirements.inference.txt
+!models/best/**
+
+# Always ignore these even if included elsewhere
+.git/
+mlruns/
+.mlruns/
+data/
+models/run_*/
+models/*.pt
+models/*.pth
+models/*.bin
+__pycache__/
+*.pyc
+.venv/
+.env
+.vscode/
+.idea/

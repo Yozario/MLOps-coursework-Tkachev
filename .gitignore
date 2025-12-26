@@ -3,8 +3,9 @@ mlruns/
 .mlruns/
 
 # Data (сырой файл)
-data/raw/
-*.csv
+data/raw/*.csv
+data/processed/*.csv
+data/processed/**/*.csv
 
 # Environment
 .env
@@ -17,3 +18,7 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# models
+models/**
+!models/README.md

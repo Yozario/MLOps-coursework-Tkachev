@@ -1,49 +1,67 @@
-from __future__ import annotations
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Tuple
 
-import os
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
-def resolve_device(device_cfg: str) -> str:
-    return "cuda" if torch.cuda.is_available() else "cpu"
+DeviceType = Literal["cpu", "cuda", "auto"]
+
+
+@dataclass
+class PredictorConfig:
+    # Путь к папке модели (transformers format: config.json, model.safetensors, tokenizer files)
+    model_path: str = "models/best"
+    # Максимальная длина последовательности для токенизатора
+    max_length: int = 128
+    # Устройство: auto/cpu/cuda
+    device: DeviceType = "auto"
+    # Порог (на будущее, если будешь выдавать probability)
+    threshold: float = 0.5
 
 
 class SpamPredictor:
-    """Класс-обёртка для инференса модели."""
+    def __init__(self, cfg: PredictorConfig):
+        self.cfg = cfg
+        self.device = self._resolve_device(cfg.device)
 
-    def __init__(self, model_path: str, max_length: int = 128, device: str = "auto", threshold: float = 0.5):
-        self.model_path = model_path
-        self.max_length = int(max_length)
-        self.threshold = float(threshold)
-        self.device = resolve_device(device)
+        model_dir = Path(cfg.model_path)
+        if not model_dir.exists():
+            raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
-        # Загружаем tokenizer и модель из папки models/best
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_path)
+        # Загружаем tokenizer + model из локальной папки (models/best)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_dir.as_posix())
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_dir.as_posix())
         self.model.to(self.device)
         self.model.eval()
 
-    @torch.inference_mode()
-    def predict(self, text: str) -> tuple[str, float]:
-        """Возвращает (label, score_spam)."""
-        if not isinstance(text, str):
-            text = str(text)
+    @staticmethod
+    def _resolve_device(device: DeviceType) -> torch.device:
+        if device == "cpu":
+            return torch.device("cpu")
+        if device == "cuda":
+            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # auto
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        enc = self.tokenizer(
+    @torch.inference_mode()
+    def predict(self, text: str) -> Tuple[str, float]:
+        # Возвращаем (label, score)
+        inputs = self.tokenizer(
             text,
             truncation=True,
-            padding=True,
-            max_length=self.max_length,
+            max_length=self.cfg.max_length,
             return_tensors="pt",
         )
-        enc = {k: v.to(self.device) for k, v in enc.items()}
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-        logits = self.model(**enc).logits
-
-        # В бинарной классификации обычно num_labels=2: [ham, spam]
+        logits = self.model(**inputs).logits  # shape [1,2]
         probs = torch.softmax(logits, dim=-1).squeeze(0)
-        score_spam = float(probs[1].item())
 
-        label = "spam" if score_spam >= self.threshold else "ham"
-        return label, score_spam
+        ham_prob = float(probs[0].item())
+        spam_prob = float(probs[1].item())
+
+        label = "spam" if spam_prob >= 0.5 else "ham"
+        score = spam_prob if label == "spam" else ham_prob
+        return label, score
